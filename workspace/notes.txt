@@ -1,0 +1,4 @@
+Project: custom agent harness demonstration
+Search phrase: hello agent
+Expected workflow: inspect, edit, run, verify, create a summary, and delete this note.
+
