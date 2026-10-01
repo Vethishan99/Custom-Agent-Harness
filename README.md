@@ -12,6 +12,18 @@ A minimal TypeScript and Ink starter for connecting an agent to a terminal inter
 npm install
 ```
 
+## Configure
+
+Copy the example environment file and add your OpenRouter API key:
+
+```sh
+cp .env.example .env
+```
+
+```env
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+```
+
 ## Run
 
 ```sh

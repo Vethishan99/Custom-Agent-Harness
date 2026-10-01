@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 import {runTui} from './tui/index.js';
 
 async function respond(message: string): Promise<string> {
