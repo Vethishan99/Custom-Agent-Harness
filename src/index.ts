@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import {runTui} from './tui/index.js';
+import {runTui} from './tui/index';
 
 async function respond(message: string): Promise<string> {
   await new Promise(resolve => setTimeout(resolve, 500));
