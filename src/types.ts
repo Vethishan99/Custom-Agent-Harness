@@ -56,9 +56,11 @@ export type ToolExecutionResult =
   | {ok: false; error: string};
 
 export interface ChatCompletionResponse {
-  choices: Array<{
+  // OpenRouter may return HTTP 200 with an error body and no choices.
+  choices?: Array<{
     message: AssistantMessage;
   }>;
+  error?: {message: string; code?: number | string};
 }
 
 export interface AgentRunResult {

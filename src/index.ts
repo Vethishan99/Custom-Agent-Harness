@@ -6,8 +6,20 @@ import process from 'node:process';
 import {runAgent} from './agent.ts';
 import {runTui} from './tui/index.tsx';
 import type {AgentHooks, Message} from './types.ts';
-import { callModel } from './openrouter.ts';
 import {tools} from './tools.ts';
+
+// Keep the system prompt plus roughly this many recent messages.
+const MAX_HISTORY = 40;
+
+function trimHistory(messages: Message[]): Message[] {
+  if (messages.length <= MAX_HISTORY + 1) return messages;
+
+  const [system, ...rest] = messages;
+  // Cut at a user message so tool calls stay paired with their results.
+  let start = rest.length - MAX_HISTORY;
+  while (start < rest.length && rest[start].role !== 'user') start += 1;
+  return [system, ...rest.slice(start)];
+}
 
 async function main(): Promise<void> {
   // Keep one canonical workspace and conversation trace outside the TUI.
@@ -29,7 +41,7 @@ async function main(): Promise<void> {
       tools,
     );
     // Preserve the returned trace for the next submission.
-    messages = result.messages;
+    messages = trimHistory(result.messages);
     return result.answer;
   }
 
@@ -40,22 +52,3 @@ void main().catch((error: unknown) => {
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;
 });
-
-async function respond(message: string): Promise<string> {
-  // Build a fresh trace for this single model turn.
-  const messages: Message[] = [
-    {
-      role: 'system',
-      content:
-        'You are a helpful AI coding assitant',
-    },
-    {role: 'user', content: message},
-  ];
-
-  // Keep this adapter test read-only by passing no tools.
-  const assistant = await callModel(messages, []);
-  return assistant.content ?? 'No text returned.';
-}
-
-runTui(respond);
-

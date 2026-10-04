@@ -8,6 +8,9 @@ import type {
   ToolSpec,
 } from './types.ts';
 
+const MAX_TURNS = 20;
+const MAX_EVENT_TEXT = 500;
+
 async function executeToolCalls(
   calls: ToolCall[],
   messages: Message[],
@@ -27,7 +30,8 @@ async function executeToolCalls(
         throw new Error(`Unknown tool: ${call.function.name}`);
       }
 
-      const value: unknown = JSON.parse(call.function.arguments);
+      // Some models send an empty string for tools without arguments.
+      const value: unknown = JSON.parse(call.function.arguments || '{}');
       if (!value || typeof value !== 'object' || Array.isArray(value)) {
         throw new Error('Tool arguments must decode to a JSON object.');
       }
@@ -44,8 +48,14 @@ async function executeToolCalls(
       };
     }
 
+    // Keep the transcript readable; the model still gets the full result.
+    const preview = JSON.stringify(result, null, 2);
     context.emit(
-      `Tool: ${call.function.name}\n${JSON.stringify(result, null, 2)}`,
+      `Tool: ${call.function.name}\n${
+        preview.length > MAX_EVENT_TEXT
+          ? `${preview.slice(0, MAX_EVENT_TEXT)}\n… (truncated)`
+          : preview
+      }`,
     );
     messages.push({
       role: 'tool',
@@ -74,8 +84,8 @@ export async function runAgent(
 
   messages.push({role: 'user', content: userInput});
 
-  let turn = 1;
-  while (true) {
+  // Bound the loop so a model that keeps calling tools cannot run forever.
+  for (let turn = 1; turn <= MAX_TURNS; turn += 1) {
     context.emit(`Model turn ${turn}`);
     const assistant = await callModel(messages, tools);
     messages.push(assistant);
@@ -89,6 +99,10 @@ export async function runAgent(
     }
 
     await executeToolCalls(calls, messages, tools, context);
-    turn += 1;
   }
+
+  return {
+    messages,
+    answer: `Stopped: reached the limit of ${MAX_TURNS} model turns.`,
+  };
 }

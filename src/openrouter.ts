@@ -6,7 +6,8 @@ import type {
 } from './types.ts';
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
-export const MODEL = 'openrouter/free';
+const DEFAULT_MODEL = 'openrouter/free';
+const REQUEST_TIMEOUT_MS = 60_000;
 
 export async function callModel(
   messages: Message[],
@@ -18,7 +19,7 @@ export async function callModel(
   }
 
   const body: Record<string, unknown> = {
-    model: MODEL,
+    model: process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
     messages,
   };
 
@@ -27,14 +28,26 @@ export async function callModel(
     body.tool_choice = 'auto';
   }
 
-    const response = await fetch(ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      // Never leave the TUI waiting on a hung request.
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      throw new Error(
+        `OpenRouter request timed out after ${REQUEST_TIMEOUT_MS / 1000}s.`,
+      );
+    }
+    throw error;
+  }
 
   if (!response.ok) {
     throw new Error(
@@ -43,7 +56,11 @@ export async function callModel(
   }
 
   const data = (await response.json()) as ChatCompletionResponse;
-  const message = data.choices[0]?.message;
+  if (data.error) {
+    throw new Error(`OpenRouter error: ${data.error.message}`);
+  }
+
+  const message = data.choices?.[0]?.message;
   if (!message) {
     throw new Error('OpenRouter returned no assistant message.');
   }
