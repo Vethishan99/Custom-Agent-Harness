@@ -38,3 +38,30 @@ export interface AgentHooks {
   emit(text: string): void;
   approve(action: string): Promise<boolean>;
 }
+
+export interface ToolContext extends AgentHooks {
+  workspaceRoot: string;
+}
+
+export interface ToolSpec {
+  definition: ToolDefinition;
+  execute(
+    args: Record<string, unknown>,
+    context: ToolContext,
+  ): Promise<unknown>;
+}
+
+export type ToolExecutionResult =
+  | {ok: true; data: unknown}
+  | {ok: false; error: string};
+
+export interface ChatCompletionResponse {
+  choices: Array<{
+    message: AssistantMessage;
+  }>;
+}
+
+export interface AgentRunResult {
+  messages: Message[];
+  answer: string;
+}

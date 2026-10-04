@@ -5,6 +5,7 @@
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
     "esModuleInterop": true,
+    "types": ["node"],
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
