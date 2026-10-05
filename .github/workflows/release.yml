@@ -22,4 +22,7 @@ jobs:
       # Trusted publishing needs npm 11.5.1 or newer.
       - run: npm install -g npm@latest
       - run: npm ci
+      # Build first: npm reads the "bin" entry before prepublishOnly runs,
+      # and drops it from the package if dist/cli.js doesn't exist yet.
+      - run: npm run build
       - run: npm publish --access public
