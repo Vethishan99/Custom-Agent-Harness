@@ -73,7 +73,8 @@ async function listModels(resolved: ResolvedProvider): Promise<string[]> {
     throw new Error(`Listing models failed with ${response.status}.`);
   }
   const data = (await response.json()) as {data?: Array<{id: string}>};
-  return (data.data ?? []).map(model => model.id).sort();
+  // Gemini prefixes ids with "models/", which chat requests don't use.
+  return (data.data ?? []).map(model => model.id.replace(/^models\//, '')).sort();
 }
 
 async function main(): Promise<void> {

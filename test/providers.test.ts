@@ -53,3 +53,11 @@ test('Anthropic content round-trips unchanged, thinking included', () => {
   const {messages} = toAnthropicMessages([{role: 'user', content: 'go'}, assistant]);
   assert.equal(messages[1].content, content);
 });
+
+test('retry delay honors Retry-After, else backs off exponentially', async () => {
+  const {retryDelay} = await import('../src/providers/openai-compatible.ts');
+  assert.equal(retryDelay(0, '2'), 2000);
+  assert.equal(retryDelay(0, '999'), 30_000);
+  assert.equal(retryDelay(0, null), 1000);
+  assert.equal(retryDelay(2, null), 4000);
+});

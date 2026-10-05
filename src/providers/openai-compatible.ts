@@ -6,6 +6,19 @@ import type {
 } from '../types.ts';
 
 const REQUEST_TIMEOUT_MS = 120_000;
+const MAX_RETRIES = 3;
+const RETRYABLE_STATUS = new Set([408, 409, 429, 500, 502, 503, 504]);
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Honor the server's Retry-After (capped), else back off 1s, 2s, 4s.
+export function retryDelay(attempt: number, retryAfter: string | null): number {
+  const seconds = retryAfter === null ? NaN : Number(retryAfter);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds, 30) * 1000;
+  return 1000 * 2 ** attempt;
+}
 
 interface ChatCompletionResponse {
   // Some gateways return HTTP 200 with an error body and no choices.
@@ -55,9 +68,8 @@ export function createOpenAICompatibleProvider(
         body.tool_choice = 'auto';
       }
 
-      let response: Response;
-      try {
-        response = await fetch(endpoint, {
+      const send = () =>
+        fetch(endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -70,17 +82,35 @@ export function createOpenAICompatibleProvider(
           // Never leave the TUI waiting on a hung request.
           signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         });
-      } catch (error) {
-        if (error instanceof Error && error.name === 'TimeoutError') {
+
+      let response: Response;
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          response = await send();
+        } catch (error) {
+          if (error instanceof Error && error.name === 'TimeoutError') {
+            throw new Error(
+              `${options.name} request timed out after ${REQUEST_TIMEOUT_MS / 1000}s.`,
+            );
+          }
+          if (attempt < MAX_RETRIES) {
+            await sleep(retryDelay(attempt, null));
+            continue;
+          }
           throw new Error(
-            `${options.name} request timed out after ${REQUEST_TIMEOUT_MS / 1000}s.`,
+            `Could not reach ${options.name} at ${options.baseURL}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
           );
         }
-        throw new Error(
-          `Could not reach ${options.name} at ${options.baseURL}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
+
+        // Rate limits and overloaded servers are usually brief; retry them.
+        if (RETRYABLE_STATUS.has(response.status) && attempt < MAX_RETRIES) {
+          await response.body?.cancel();
+          await sleep(retryDelay(attempt, response.headers.get('retry-after')));
+          continue;
+        }
+        break;
       }
 
       if (!response.ok) {
