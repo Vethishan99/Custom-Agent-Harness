@@ -4,6 +4,8 @@ A terminal coding agent that works in any codebase, with the AI provider of your
 
 It reads, searches and edits the files in your project and can run commands such as tests and builds. **Every file change and every command needs your approval.**
 
+![agent-harness finding and fixing a failing test, with the user approving the edit and the test run](https://raw.githubusercontent.com/Vethishan99/Custom-Agent-Herness/main/docs/demo.gif)
+
 ## Install
 
 You need Node.js 20 or newer.
@@ -99,6 +101,8 @@ npm run dev            # runs from source against the current folder
 npm test               # unit tests
 npm run build          # bundles dist/cli.js
 ```
+
+To re-record the demo GIF: `brew install vhs`, then `npm run build && OPENROUTER_API_KEY=... vhs docs/demo.tape`.
 
 To publish a release, bump the version in `package.json`, then push a `v*` tag. The release workflow publishes to npm, using the `NPM_TOKEN` repository secret.
 

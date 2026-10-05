@@ -10,7 +10,43 @@ import type {
 } from './types.ts';
 
 const MAX_TURNS = 40;
-const MAX_EVENT_TEXT = 500;
+const MAX_EVENT_TEXT = 160;
+
+function clip(text: string): string {
+  const line = text.replace(/\s+/g, ' ').trim();
+  return line.length > MAX_EVENT_TEXT
+    ? `${line.slice(0, MAX_EVENT_TEXT)}…`
+    : line;
+}
+
+// e.g. "edit_file src/cart.js", "run_command npm test → exit 0".
+export function summarizeCall(call: ToolCall, result: ToolExecutionResult): string {
+  let target = '';
+  try {
+    const args = JSON.parse(call.function.arguments || '{}') as Record<string, unknown>;
+    const main = args.command ?? args.pattern ?? args.query ?? args.path;
+    if (typeof main === 'string') target = ` ${main}`;
+  } catch {
+    // Unparseable arguments are reported by the result below.
+  }
+
+  let outcome = '';
+  if (!result.ok) {
+    outcome = ` ✗ ${result.error}`;
+  } else {
+    const data = result.data as Record<string, unknown> | null;
+    if (data && data.approved === false) outcome = ' → denied';
+    else if (data && typeof data.exitCode === 'number') {
+      outcome = data.timedOut ? ' → timed out' : ` → exit ${data.exitCode}`;
+    } else if (data && Array.isArray(data.matches)) {
+      outcome = ` → ${data.matches.length} matches`;
+    } else if (data && Array.isArray(data.files)) {
+      outcome = ` → ${data.files.length} files`;
+    }
+  }
+
+  return clip(`${call.function.name}${target}${outcome}`);
+}
 
 async function executeToolCalls(
   calls: ToolCall[],
@@ -49,15 +85,8 @@ async function executeToolCalls(
       };
     }
 
-    // Keep the transcript readable; the model still gets the full result.
-    const preview = JSON.stringify(result, null, 2);
-    context.emit(
-      `Tool: ${call.function.name}\n${
-        preview.length > MAX_EVENT_TEXT
-          ? `${preview.slice(0, MAX_EVENT_TEXT)}\n… (truncated)`
-          : preview
-      }`,
-    );
+    // One readable line per call; the model still gets the full result.
+    context.emit(summarizeCall(call, result));
     messages.push({
       role: 'tool',
       tool_call_id: call.id,
@@ -123,7 +152,6 @@ export async function runAgent(
 
   // Bound the loop so a model that keeps calling tools cannot run forever.
   for (let turn = 1; turn <= MAX_TURNS; turn += 1) {
-    context.emit(`Model turn ${turn}`);
     const assistant = await provider.complete(messages, tools);
     messages.push(assistant);
 

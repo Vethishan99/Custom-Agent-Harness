@@ -34,7 +34,7 @@ type AppProps = {
 function labelFor(role: TranscriptEntry["role"]): string {
   if (role === "user") return "You";
   if (role === "agent") return "Agent";
-  if (role === "event") return "Event";
+  if (role === "event") return "Tool";
   if (role === "approval") return "Approval";
   return "Error";
 }
@@ -115,8 +115,9 @@ function App({ respond, info }: AppProps) {
   }
 
   return (
-    <Box flexDirection="column" padding={1}>
-      {/* Static prints each entry once, so typing doesn't redraw history. */}
+    <>
+      {/* Static prints each entry once, so typing doesn't redraw history.
+          Ink requires it at the top level, outside any padded Box. */}
       <Static items={[null, ...transcript]}>
         {(entry, index) =>
           entry === null ? (
@@ -124,7 +125,7 @@ function App({ respond, info }: AppProps) {
               key="header"
               flexDirection="column"
               marginBottom={1}
-              paddingX={1}
+              paddingX={2}
               paddingTop={1}
             >
               <Text bold>Agent Harness</Text>
@@ -145,7 +146,7 @@ function App({ respond, info }: AppProps) {
               )}
             </Box>
           ) : (
-            <Box key={index} paddingX={1}>
+            <Box key={index} paddingX={2}>
               <Text bold color={colorFor(entry.role)}>
                 {labelFor(entry.role)}:{" "}
               </Text>
@@ -157,7 +158,7 @@ function App({ respond, info }: AppProps) {
         }
       </Static>
 
-      <Box flexDirection="column">
+      <Box flexDirection="column" paddingX={2} paddingTop={1}>
         {/* Show the pending action before collecting its decision. */}
         {approval ? (
           <Text color="magenta">
@@ -186,12 +187,12 @@ function App({ respond, info }: AppProps) {
         </Box>
       </Box>
 
-      <Box marginTop={1}>
+      <Box marginTop={1} paddingX={2} paddingBottom={1}>
         <Text>
           <Text color="cyan">Ctrl+C</Text> to exit
         </Text>
       </Box>
-    </Box>
+    </>
   );
 }
 

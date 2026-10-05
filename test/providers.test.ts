@@ -61,3 +61,24 @@ test('retry delay honors Retry-After, else backs off exponentially', async () =>
   assert.equal(retryDelay(0, null), 1000);
   assert.equal(retryDelay(2, null), 4000);
 });
+
+test('tool calls are summarized on one line', async () => {
+  const {summarizeCall} = await import('../src/agent.ts');
+  const call = (name: string, args: object) => ({
+    id: 'x',
+    type: 'function' as const,
+    function: {name, arguments: JSON.stringify(args)},
+  });
+  assert.equal(
+    summarizeCall(call('run_command', {command: 'npm test'}), {ok: true, data: {exitCode: 1}}),
+    'run_command npm test → exit 1',
+  );
+  assert.equal(
+    summarizeCall(call('edit_file', {path: 'a.js'}), {ok: true, data: {approved: false}}),
+    'edit_file a.js → denied',
+  );
+  assert.equal(
+    summarizeCall(call('read_file', {path: 'x'}), {ok: false, error: 'ENOENT'}),
+    'read_file x ✗ ENOENT',
+  );
+});
