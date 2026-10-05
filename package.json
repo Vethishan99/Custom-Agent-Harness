@@ -1,6 +1,6 @@
 {
   "name": "agent-harness-tui",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A terminal coding agent for any codebase that works with Anthropic, OpenAI, OpenRouter, Gemini, Ollama and other providers.",
   "type": "module",
   "bin": {
