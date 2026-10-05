@@ -17,8 +17,18 @@ type PendingApproval = {
   resolve: (approved: boolean) => void;
 };
 
+// Session details shown once at the top of the screen.
+export type SessionInfo = {
+  projectRoot: string;
+  branch: string | null;
+  provider: string;
+  model: string;
+  shell: boolean;
+};
+
 type AppProps = {
   respond: Respond;
+  info: SessionInfo;
 };
 
 function labelFor(role: TranscriptEntry["role"]): string {
@@ -37,7 +47,7 @@ function colorFor(role: TranscriptEntry["role"]): string {
   return "red";
 }
 
-function App({ respond }: AppProps) {
+function App({ respond, info }: AppProps) {
   const [input, setInput] = useState("");
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [isThinking, setIsThinking] = useState(false);
@@ -110,8 +120,29 @@ function App({ respond }: AppProps) {
       <Static items={[null, ...transcript]}>
         {(entry, index) =>
           entry === null ? (
-            <Box key="header" marginBottom={1} paddingX={1} paddingTop={1}>
+            <Box
+              key="header"
+              flexDirection="column"
+              marginBottom={1}
+              paddingX={1}
+              paddingTop={1}
+            >
               <Text bold>Agent Harness</Text>
+              <Text dimColor>
+                Project: {info.projectRoot}
+                {info.branch ? ` (${info.branch})` : ""}
+              </Text>
+              <Text dimColor>
+                Model: {info.provider} / {info.model}
+              </Text>
+              {info.shell ? (
+                <Text color="yellow">
+                  Shell commands run with your full user permissions. Read
+                  each one before approving.
+                </Text>
+              ) : (
+                <Text dimColor>Shell commands are disabled.</Text>
+              )}
             </Box>
           ) : (
             <Box key={index} paddingX={1}>
@@ -164,6 +195,6 @@ function App({ respond }: AppProps) {
   );
 }
 
-export function runTui(respond: Respond): void {
-  render(<App respond={respond} />);
+export function runTui(respond: Respond, info: SessionInfo): void {
+  render(<App respond={respond} info={info} />);
 }

@@ -1,27 +1,51 @@
 {
   "name": "agent-harness-tui",
-  "version": "1.0.0",
-  "description": "A clean, modern, and extensible TUI boilerplate in TypeScript for agent harnesses.",
+  "version": "0.1.0",
+  "description": "A terminal coding agent for any codebase that works with Anthropic, OpenAI, OpenRouter, Gemini, Ollama and other providers.",
   "type": "module",
+  "bin": {
+    "agent-harness": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "scripts": {
-    "dev": "tsx src/index.ts",
+    "dev": "tsx --env-file-if-exists=.env src/cli.ts",
+    "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "start": "tsx src/index.ts"
+    "test": "tsx --test test/*.test.ts",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "start": "node dist/cli.js"
   },
   "keywords": [
-    "tui",
+    "ai",
+    "agent",
+    "coding-agent",
     "cli",
-    "typescript",
-    "ink",
-    "agent-harness"
+    "tui",
+    "anthropic",
+    "claude",
+    "openai",
+    "openrouter",
+    "ollama"
   ],
-  "author": "",
+  "author": "Vethishan",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vethishan99/Custom-Agent-Herness.git"
+  },
+  "homepage": "https://github.com/Vethishan99/Custom-Agent-Herness#readme",
+  "bugs": {
+    "url": "https://github.com/Vethishan99/Custom-Agent-Herness/issues"
+  },
   "dependencies": {
-    "dotenv": "^18.0.5",
+    "@anthropic-ai/sdk": "^0.131.0",
     "ink": "^5.1.0",
     "ink-text-input": "^6.0.0",
     "react": "^18.3.1"
@@ -29,6 +53,7 @@
   "devDependencies": {
     "@types/node": "^26.6.4",
     "@types/react": "^18.3.1",
+    "esbuild": "^0.28.2",
     "tsx": "^4.19.1",
     "typescript": "^5.6.2"
   }
