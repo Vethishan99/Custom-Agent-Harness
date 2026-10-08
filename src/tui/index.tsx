@@ -1,16 +1,26 @@
-import { useState } from "react";
-import { Box, Static, Text, render } from "ink";
+import { useEffect, useRef, useState } from "react";
+import { Box, Static, Text, render, useStdout } from "ink";
 import TextInput from "ink-text-input";
 import type { AgentHooks } from "../types.ts";
+import {
+  closeOpenMarkers,
+  type Line,
+  LineSplitter,
+  MarkdownLine,
+} from "./markdown.tsx";
+import { Typewriter } from "./typewriter.ts";
 
 // Let the TUI pass interface hooks into the harness boundary.
 export type Respond = (message: string, hooks: AgentHooks) => Promise<string>;
 
 // Represent approval requests alongside the existing transcript roles.
-type TranscriptEntry = {
-  role: "user" | "agent" | "event" | "approval" | "error";
-  text: string;
-};
+// Agent replies are stored one Markdown line per entry.
+type TranscriptEntry =
+  | { role: "user" | "event" | "approval" | "error"; text: string }
+  | ({ role: "agent" } & Line);
+
+// Width of "Agent: ", so every line of a reply starts in the same column.
+const LABEL_WIDTH = 7;
 
 type PendingApproval = {
   action: string;
@@ -47,14 +57,76 @@ function colorFor(role: TranscriptEntry["role"]): string {
   return "red";
 }
 
+// "Thinking." → "Thinking.." → "Thinking..." on a loop, so it's clear the
+// agent is still working. The dots are padded so the line never shifts.
+function Working({ label }: { label: string }) {
+  const [dots, setDots] = useState(1);
+  useEffect(() => {
+    const timer = setInterval(() => setDots((count) => (count % 3) + 1), 400);
+    return () => clearInterval(timer);
+  }, []);
+  return (
+    <Text color="yellow">
+      {label}
+      {".".repeat(dots).padEnd(3)}
+    </Text>
+  );
+}
+
+// One line of a reply, in a column beside the "Agent:" label. The explicit
+// width keeps finished lines wrapping exactly like the line being typed.
+function AgentLine({ line }: { line: Line }) {
+  const { stdout } = useStdout();
+  const columns = stdout.columns || 80;
+  return (
+    <Box paddingX={2} width={columns} marginTop={line.gap ? 1 : 0}>
+      <Box width={LABEL_WIDTH} flexShrink={0}>
+        {line.first ? (
+          <Text bold color={colorFor("agent")}>
+            {labelFor("agent")}:
+          </Text>
+        ) : null}
+      </Box>
+      <Box flexGrow={1} flexShrink={1}>
+        <MarkdownLine
+          text={line.text}
+          code={line.code}
+          width={columns - 4 - LABEL_WIDTH}
+        />
+      </Box>
+    </Box>
+  );
+}
+
 function App({ respond, info }: AppProps) {
   const [input, setInput] = useState("");
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [approval, setApproval] = useState<PendingApproval | null>(null);
+  // The reply line still being typed; finished lines go to the transcript.
+  const [live, setLive] = useState<Line | null>(null);
+  const splitter = useRef(new LineSplitter());
+  const typewriter = useRef<Typewriter | null>(null);
+  typewriter.current ??= new Typewriter(reveal);
 
   function append(entry: TranscriptEntry) {
     setTranscript((entries) => [...entries, entry]);
+  }
+
+  // Called by the typewriter with the next few characters of the reply.
+  function reveal(text: string) {
+    for (const line of splitter.current.push(text)) {
+      append({ role: "agent", ...line });
+    }
+    setLive(splitter.current.current());
+  }
+
+  // Move the rest of the reply into the transcript before other output.
+  function endReply() {
+    for (const line of splitter.current.end()) {
+      append({ role: "agent", ...line });
+    }
+    setLive(null);
   }
 
   function settleApproval(message: string): boolean {
@@ -89,29 +161,43 @@ function App({ respond, info }: AppProps) {
     append({ role: "user", text: message });
     setIsThinking(true);
 
-    // Translate runtime events and approvals into TUI state.
+    // Events and approvals wait for the text before them to finish typing.
+    const writer = typewriter.current!;
+    let streamed = false;
     const hooks: AgentHooks = {
       emit(text) {
-        append({ role: "event", text });
+        writer.then(() => {
+          endReply();
+          append({ role: "event", text });
+        });
+      },
+      stream(text) {
+        if (text.trim()) streamed = true;
+        writer.write(text);
       },
       approve(action) {
         return new Promise<boolean>((resolveApproval) => {
-          setApproval({ action, resolve: resolveApproval });
+          writer.then(() => {
+            endReply();
+            setApproval({ action, resolve: resolveApproval });
+          });
         });
       },
     };
 
+    let failure: string | null = null;
     try {
       const response = await respond(message, hooks);
-      append({ role: "agent", text: response });
+      // The reply usually arrived as a stream; type it out here if not.
+      if (!streamed) writer.write(response);
     } catch (error) {
-      append({
-        role: "error",
-        text: error instanceof Error ? error.message : "Something went wrong.",
-      });
-    } finally {
-      setIsThinking(false);
+      failure = error instanceof Error ? error.message : "Something went wrong.";
     }
+
+    await writer.idle();
+    endReply();
+    if (failure) append({ role: "error", text: failure });
+    setIsThinking(false);
   }
 
   return (
@@ -145,6 +231,8 @@ function App({ respond, info }: AppProps) {
                 <Text dimColor>Shell commands are disabled.</Text>
               )}
             </Box>
+          ) : entry.role === "agent" ? (
+            <AgentLine key={index} line={entry} />
           ) : (
             <Box key={index} paddingX={2}>
               <Text bold color={colorFor(entry.role)}>
@@ -158,6 +246,13 @@ function App({ respond, info }: AppProps) {
         }
       </Static>
 
+      {/* The line of the reply that is still being typed. */}
+      {live ? (
+        <AgentLine
+          line={live.code ? live : { ...live, text: closeOpenMarkers(live.text) }}
+        />
+      ) : null}
+
       <Box flexDirection="column" paddingX={2} paddingTop={1}>
         {/* Show the pending action before collecting its decision. */}
         {approval ? (
@@ -169,7 +264,7 @@ function App({ respond, info }: AppProps) {
 
         <Box>
           {isThinking && !approval ? (
-            <Text color="yellow">Thinking...</Text>
+            <Working label={live ? "Writing" : "Thinking"} />
           ) : (
             <>
               <Text color="cyan">{approval ? "Approve> " : "> "}</Text>

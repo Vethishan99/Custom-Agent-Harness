@@ -6,6 +6,7 @@ import type {
   ToolCall,
   ToolSpec,
 } from '../types.ts';
+import {ProviderError} from './errors.ts';
 
 type MessageParam = Anthropic.Beta.BetaMessageParam;
 type ContentBlockParam = Anthropic.Beta.BetaContentBlockParam;
@@ -104,17 +105,22 @@ export function fromAnthropicContent(content: ContentBlock[]): AssistantMessage 
   };
 }
 
-function friendlyError(error: unknown): Error {
+function friendlyError(error: unknown, model: string): Error {
   if (error instanceof Anthropic.AuthenticationError) {
-    return new Error(
-      'Anthropic rejected the API key. Run `agent-harness login` to update it.',
+    return new ProviderError(
+      'Anthropic rejected the API key. Run `agent-harness login` to enter a new one.',
+      'auth',
     );
   }
   if (error instanceof Anthropic.PermissionDeniedError) {
-    return new Error(`Anthropic denied access: ${error.message}`);
+    return new ProviderError(`Anthropic denied access: ${error.message}`, 'auth');
   }
   if (error instanceof Anthropic.NotFoundError) {
-    return new Error(`Anthropic model or endpoint not found: ${error.message}`);
+    return new ProviderError(
+      `Anthropic can't use the model "${model}" (${error.message}). ` +
+        'Run `agent-harness model` to choose another.',
+      'model',
+    );
   }
   if (error instanceof Anthropic.RateLimitError) {
     return new Error('Anthropic rate limit reached. Wait a moment and retry.');
@@ -141,14 +147,17 @@ export function createAnthropicProvider(options: AnthropicOptions): Provider {
     // bound to; Claude's 1M-token context makes trimming unnecessary.
     canTrimHistory: false,
 
-    async complete(messages: Message[], tools: ToolSpec[]) {
+    async complete(messages: Message[], tools: ToolSpec[], onText) {
       const {system, messages: converted} = toAnthropicMessages(messages);
 
       let response: Anthropic.Beta.BetaMessage;
       try {
-        response = await client.beta.messages.create({
+        // Streaming shows text as it arrives and avoids HTTP timeouts on
+        // long replies. A mid-stream fallback continues the same stream, so
+        // text already shown stays valid.
+        const stream = client.beta.messages.stream({
           model: options.model,
-          max_tokens: 16000,
+          max_tokens: 64000,
           ...(system ? {system} : {}),
           messages: converted,
           tools: tools.map(tool => ({
@@ -163,8 +172,10 @@ export function createAnthropicProvider(options: AnthropicOptions): Provider {
           betas: ['server-side-fallback-2026-07-01'],
           fallbacks: 'default',
         });
+        if (onText) stream.on('text', delta => onText(delta));
+        response = await stream.finalMessage();
       } catch (error) {
-        throw friendlyError(error);
+        throw friendlyError(error, options.model);
       }
 
       if (response.stop_reason === 'refusal') {

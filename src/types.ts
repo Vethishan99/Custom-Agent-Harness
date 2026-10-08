@@ -5,6 +5,9 @@ export interface ToolCall {
     name: string;
     arguments: string;
   };
+  // Provider data that must be sent back unchanged, such as Gemini's
+  // thought signatures ({google: {thought_signature}}).
+  extra_content?: unknown;
 }
 
 export interface AssistantMessage {
@@ -41,6 +44,8 @@ export interface ToolDefinition {
 export interface AgentHooks {
   emit(text: string): void;
   approve(action: string): Promise<boolean>;
+  // Receives the model's reply text as it is generated.
+  stream?(text: string): void;
 }
 
 export interface ToolContext extends AgentHooks {
@@ -72,5 +77,11 @@ export interface Provider {
   // Whether old turns may be dropped to save context. Providers that bind
   // reasoning to the exact history (Anthropic) must keep it append-only.
   canTrimHistory: boolean;
-  complete(messages: Message[], tools: ToolSpec[]): Promise<AssistantMessage>;
+  // onText receives reply text as it streams in; the returned message is
+  // still the complete reply.
+  complete(
+    messages: Message[],
+    tools: ToolSpec[],
+    onText?: (text: string) => void,
+  ): Promise<AssistantMessage>;
 }

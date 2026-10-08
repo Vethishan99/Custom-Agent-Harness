@@ -152,7 +152,9 @@ export async function runAgent(
 
   // Bound the loop so a model that keeps calling tools cannot run forever.
   for (let turn = 1; turn <= MAX_TURNS; turn += 1) {
-    const assistant = await provider.complete(messages, tools);
+    const assistant = await provider.complete(messages, tools, text =>
+      context.stream?.(text),
+    );
     messages.push(assistant);
 
     const calls = assistant.tool_calls ?? [];

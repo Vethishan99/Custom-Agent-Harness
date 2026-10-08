@@ -17,11 +17,20 @@ npm install -g agent-harness-tui # or install the `agent-harness` command
 
 ## Set up a provider
 
-Run `login` once. It asks for a provider, a model and your API key, then saves them to `~/.config/agent-harness/config.json`. The file is readable only by you.
+Run `login` once. It asks for a provider, your API key and a model, then sends one tiny test request. If the key or model is wrong, it tells you which one and lets you fix it before anything is saved. Settings go to `~/.config/agent-harness/config.json`, which only you can read.
 
 ```sh
 agent-harness login
 ```
+
+To change the model later without re-entering your key:
+
+```sh
+agent-harness model                  # list the models your key can use, then pick one
+agent-harness model gpt-5-mini       # or switch straight to one
+```
+
+Run `login` again to change the provider or key. When you run it again, pressing Enter at the key prompt keeps the saved key.
 
 Or set an environment variable instead. The agent uses the first key it finds:
 
@@ -37,7 +46,9 @@ Or set an environment variable instead. The agent uses the first key it finds:
 | Ollama (local, free) | `ollama` | none | https://ollama.com |
 | Any OpenAI-compatible API | `custom` + `--base-url` | `AGENT_HARNESS_API_KEY` | |
 
-**Pick a model that supports tool calling.** Run `agent-harness models` to see each provider's default, or `agent-harness models --provider openai` to list the models your key can use.
+**Pick a model that supports tool calling.** The test request checks this for you. Run `agent-harness models` to see each provider's default, or `agent-harness models --provider openai` to list the models your key can use.
+
+An environment variable beats the saved settings: if `OPENAI_API_KEY` is set, a saved OpenAI key is ignored. `login` and `model` warn you when this happens.
 
 ## Use
 

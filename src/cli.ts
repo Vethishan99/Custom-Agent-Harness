@@ -1,12 +1,12 @@
 import {readFileSync} from 'node:fs';
 import process from 'node:process';
 import {parseArgs} from 'node:util';
-import Anthropic from '@anthropic-ai/sdk';
 import {buildSystemPrompt, runAgent} from './agent.ts';
 import {loadConfig, resolveProvider} from './config.ts';
-import {login} from './login.ts';
+import {login, switchModel} from './login.ts';
 import {detectProject} from './project.ts';
-import {PRESETS, createProvider, type ResolvedProvider} from './providers/index.ts';
+import {PRESETS, createProvider} from './providers/index.ts';
+import {listModels} from './setup.ts';
 import {createTools} from './tools.ts';
 import {runTui} from './tui/index.tsx';
 import type {AgentHooks, Message} from './types.ts';
@@ -16,6 +16,7 @@ const MAX_HISTORY = 40;
 
 const HELP = `Usage: agent-harness [options]
        agent-harness login
+       agent-harness model [<id>] [--provider <id>]
        agent-harness models [--provider <id>]
 
 Runs a coding agent in the current project (the enclosing git repository,
@@ -34,6 +35,7 @@ Options:
 
 Commands:
   login                   Save an API key and default provider/model
+  model [<id>]            Change the saved model (lists choices if no id)
   models                  List providers, or a provider's available models
 
 Keys are read from the environment first (e.g. ANTHROPIC_API_KEY,
@@ -53,28 +55,6 @@ function trimHistory(messages: Message[]): Message[] {
   let start = rest.length - MAX_HISTORY;
   while (start < rest.length && rest[start].role !== 'user') start += 1;
   return [system, ...rest.slice(start)];
-}
-
-async function listModels(resolved: ResolvedProvider): Promise<string[]> {
-  const {preset, apiKey, baseURL} = resolved;
-  if (preset.id === 'anthropic') {
-    const client = new Anthropic({apiKey, ...(baseURL ? {baseURL} : {})});
-    const ids: string[] = [];
-    for await (const model of client.models.list()) ids.push(model.id);
-    return ids;
-  }
-
-  const url = `${(baseURL ?? preset.baseURL ?? '').replace(/\/+$/, '')}/models`;
-  const response = await fetch(url, {
-    headers: apiKey ? {Authorization: `Bearer ${apiKey}`} : {},
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!response.ok) {
-    throw new Error(`Listing models failed with ${response.status}.`);
-  }
-  const data = (await response.json()) as {data?: Array<{id: string}>};
-  // Gemini prefixes ids with "models/", which chat requests don't use.
-  return (data.data ?? []).map(model => model.id.replace(/^models\//, '')).sort();
 }
 
 async function main(): Promise<void> {
@@ -104,6 +84,8 @@ async function main(): Promise<void> {
     model: values.model,
     baseURL: values['base-url'],
   };
+
+  if (command === 'model') return switchModel(flags, positionals[1]);
 
   if (command === 'models') {
     if (!values.provider) {
