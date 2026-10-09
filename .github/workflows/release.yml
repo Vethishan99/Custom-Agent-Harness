@@ -1,7 +1,9 @@
 name: Release
 
-# Publishes to npm when a version tag (v1.2.3) is pushed. Uses npm trusted
-# publishing: GitHub proves its identity to npm, so no token is stored.
+# Stages a release on npm when a version tag (v1.2.3) is pushed. Uses npm
+# trusted publishing: GitHub proves its identity to npm, so no token is
+# stored. A maintainer then approves the staged release with 2FA (npmjs.com
+# Staged Packages tab, or `npm stage approve <id>`) before it goes public.
 on:
   push:
     tags: ['v*']
@@ -19,10 +21,10 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
           cache: npm
-      # Trusted publishing needs npm 11.5.1 or newer.
+      # Staged publishing needs npm 11.15.0 or newer (and Node 22.14+).
       - run: npm install -g npm@latest
       - run: npm ci
       # Build first: npm reads the "bin" entry before prepublishOnly runs,
       # and drops it from the package if dist/cli.js doesn't exist yet.
       - run: npm run build
-      - run: npm publish --access public
+      - run: npm stage publish

@@ -115,7 +115,7 @@ npm run build          # bundles dist/cli.js
 
 To re-record the demo GIF: `brew install vhs`, then `npm run build && OPENROUTER_API_KEY=... vhs docs/demo.tape`.
 
-To publish a release, bump the version in `package.json`, then push a `v*` tag. The release workflow publishes to npm, using the `NPM_TOKEN` repository secret.
+To publish a release, run `npm version patch` (or `minor`) and push the commit and the new `v*` tag. The release workflow runs the checks and stages the package on npm through trusted publishing, so no token is stored. A maintainer then approves the staged release with 2FA, on npmjs.com under Staged Packages or with `npm stage approve <id>`.
 
 ## License
 
