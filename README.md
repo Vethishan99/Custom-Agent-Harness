@@ -4,7 +4,7 @@ A terminal coding agent that works in any codebase, with the AI provider of your
 
 It reads, searches and edits the files in your project and can run commands such as tests and builds. **Every file change and every command needs your approval.**
 
-![agent-harness finding and fixing a failing test, with the user approving the edit and the test run](https://raw.githubusercontent.com/Vethishan99/Custom-Agent-Herness/main/docs/demo.gif)
+![agent-harness finding and fixing a failing test, with the user approving the edit and the test run](https://raw.githubusercontent.com/Vethishan99/Custom-Agent-Harness/main/docs/demo.gif)
 
 ## Install
 
@@ -104,8 +104,8 @@ The search tools skip git-ignored files, plus `node_modules`, build output, and 
 ## Development
 
 ```sh
-git clone https://github.com/Vethishan99/Custom-Agent-Herness.git
-cd Custom-Agent-Herness
+git clone https://github.com/Vethishan99/Custom-Agent-Harness.git
+cd Custom-Agent-Harness
 npm install
 cp .env.example .env   # add a key
 npm run dev            # runs from source against the current folder

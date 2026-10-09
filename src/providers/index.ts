@@ -116,7 +116,7 @@ export function createProvider(resolved: ResolvedProvider): Provider {
       preset.id === 'openrouter'
         ? {
             // Lets OpenRouter attribute usage to this app.
-            'HTTP-Referer': 'https://github.com/Vethishan99/Custom-Agent-Herness',
+            'HTTP-Referer': 'https://github.com/Vethishan99/Custom-Agent-Harness',
             'X-Title': 'agent-harness',
           }
         : undefined,

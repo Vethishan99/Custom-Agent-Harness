@@ -38,11 +38,11 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Vethishan99/Custom-Agent-Herness.git"
+    "url": "git+https://github.com/Vethishan99/Custom-Agent-Harness.git"
   },
-  "homepage": "https://github.com/Vethishan99/Custom-Agent-Herness#readme",
+  "homepage": "https://github.com/Vethishan99/Custom-Agent-Harness#readme",
   "bugs": {
-    "url": "https://github.com/Vethishan99/Custom-Agent-Herness/issues"
+    "url": "https://github.com/Vethishan99/Custom-Agent-Harness/issues"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
