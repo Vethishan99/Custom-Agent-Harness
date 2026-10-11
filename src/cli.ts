@@ -2,10 +2,10 @@ import {readFileSync} from 'node:fs';
 import process from 'node:process';
 import {parseArgs} from 'node:util';
 import {buildSystemPrompt, runAgent} from './agent.ts';
-import {loadConfig, resolveProvider} from './config.ts';
+import {SetupNeededError, loadConfig, resolveProvider} from './config.ts';
 import {login, switchModel} from './login.ts';
 import {detectProject} from './project.ts';
-import {PRESETS, createProvider} from './providers/index.ts';
+import {PRESETS, createProvider, type ResolvedProvider} from './providers/index.ts';
 import {listModels} from './setup.ts';
 import {createTools} from './tools.ts';
 import {runTui} from './tui/index.tsx';
@@ -21,7 +21,7 @@ const HELP = `Usage: agent-harness [options]
 
 Runs a coding agent in the current project (the enclosing git repository,
 or the current folder). Every file change and shell command needs your
-approval.
+approval. The first run asks for an AI provider, API key and model.
 
 Options:
   --provider <id>         ${PRESETS.map(p => p.id).join(', ')}
@@ -34,7 +34,7 @@ Options:
   -v, --version           Show the version
 
 Commands:
-  login                   Save an API key and default provider/model
+  login                   Change the provider, API key or default model
   model [<id>]            Change the saved model (lists choices if no id)
   models                  List providers, or a provider's available models
 
@@ -111,7 +111,21 @@ async function main(): Promise<void> {
     throw new Error('--command-timeout must be a positive number of seconds.');
   }
 
-  const resolved = resolveProvider(flags, config);
+  let resolved: ResolvedProvider;
+  try {
+    resolved = resolveProvider(flags, config);
+  } catch (error) {
+    // First run, or a missing key: set up here rather than send the user
+    // off to another command. Scripts without a terminal still get the error.
+    if (!(error instanceof SetupNeededError) || !process.stdin.isTTY) throw error;
+    console.log(
+      "Let's connect an AI provider first. You can change it later with " +
+        '`agent-harness login`.\n',
+    );
+    await login();
+    console.log('');
+    resolved = resolveProvider(flags, await loadConfig());
+  }
   const provider = createProvider(resolved);
   const project = await detectProject(
     values.workspace ?? process.cwd(),

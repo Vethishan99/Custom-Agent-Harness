@@ -15,26 +15,38 @@ npx agent-harness-tui            # run once without installing
 npm install -g agent-harness-tui # or install the `agent-harness` command
 ```
 
-## Set up a provider
+## Get started
 
-Run `login` once. It asks for a provider, your API key and a model, then sends one tiny test request. If the key or model is wrong, it tells you which one and lets you fix it before anything is saved.
+Open a terminal in your project and run:
+
+```sh
+cd ~/code/my-app
+agent-harness            # or, without installing: npx agent-harness-tui
+```
+
+The first time, it asks for an AI provider, your API key and a model, checks them with one tiny test request, and then starts. If the key or model is wrong, it tells you which one and lets you fix it before anything is saved. After that, `agent-harness` starts straight away.
+
+The project is the git repository you're in, or the current folder if it isn't a repository. Then just ask, for example:
+
+- "Where is the login form validated? Add a check for empty passwords."
+- "Run the tests and fix whatever fails."
+- "Explain how requests flow from `server.ts` to the database."
+
+## Providers and keys
 
 Your API key goes into your system's credential store: the macOS Keychain, Windows Credential Manager, or the Linux Secret Service (GNOME Keyring or KWallet). The provider and model go to `~/.config/agent-harness/config.json`. On systems without a credential store, such as servers and containers, the key is kept in that file instead, and only you can read it. Keys saved by older versions move to the credential store automatically.
 
-```sh
-agent-harness login
-```
-
-To change the model later without re-entering your key:
+To change things later:
 
 ```sh
-agent-harness model                  # list the models your key can use, then pick one
+agent-harness model                  # pick another model from those your key can use
 agent-harness model gpt-5-mini       # or switch straight to one
+agent-harness login                  # change the provider or API key
 ```
 
-Run `login` again to change the provider or key. When you run it again, pressing Enter at the key prompt keeps the saved key.
+When you run `login` again, pressing Enter at the key prompt keeps the saved key.
 
-Or set an environment variable instead. The agent uses the first key it finds:
+You can also skip the setup and use an environment variable. The agent uses the first key it finds:
 
 | Provider | `--provider` | Key variable | Get a key |
 |---|---|---|---|
@@ -52,22 +64,7 @@ Or set an environment variable instead. The agent uses the first key it finds:
 
 An environment variable beats the saved settings: if `OPENAI_API_KEY` is set, a saved OpenAI key is ignored. `login` and `model` warn you when this happens.
 
-## Use
-
-Open a terminal in your project and run:
-
-```sh
-cd ~/code/my-app
-agent-harness
-```
-
-The project is the git repository you're in, or the current folder if it isn't a repository. Then just ask, for example:
-
-- "Where is the login form validated? Add a check for empty passwords."
-- "Run the tests and fix whatever fails."
-- "Explain how requests flow from `server.ts` to the database."
-
-### Options
+## Options
 
 ```
 --provider <id>         Choose the provider for this run

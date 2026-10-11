@@ -123,6 +123,15 @@ export interface ProviderFlags {
   baseURL?: string;
 }
 
+// Nothing usable is set up yet: no provider, or no key for it. The CLI
+// answers this by running the login steps instead of failing.
+export class SetupNeededError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SetupNeededError';
+  }
+}
+
 // Pick the provider, model, key, and URL: flags, then saved config, then
 // whichever provider has an API key in the environment.
 export function resolveProvider(
@@ -138,7 +147,7 @@ export function resolveProvider(
     PRESETS.find(preset => config.providers[preset.id]?.apiKey)?.id;
 
   if (!id) {
-    throw new Error(
+    throw new SetupNeededError(
       'No AI provider is set up. Run `agent-harness login`, or set an API ' +
         'key such as ANTHROPIC_API_KEY or OPENAI_API_KEY.',
     );
@@ -154,7 +163,7 @@ export function resolveProvider(
   const saved = config.providers[id] ?? {};
   const apiKey = (preset.keyEnv && env[preset.keyEnv]) || saved.apiKey;
   if (preset.keyEnv && !apiKey) {
-    throw new Error(
+    throw new SetupNeededError(
       `No API key for ${preset.label}. Run \`agent-harness login\` or set ${preset.keyEnv}.`,
     );
   }

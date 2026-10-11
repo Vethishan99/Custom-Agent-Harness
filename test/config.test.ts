@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFile, stat} from 'node:fs/promises';
 import {join} from 'node:path';
 import {test} from 'node:test';
-import {loadConfig, resolveProvider, saveConfig, type Config} from '../src/config.ts';
+import {SetupNeededError, loadConfig, resolveProvider, saveConfig, type Config} from '../src/config.ts';
 import {tempDir} from './helpers.ts';
 
 const empty: Config = {providers: {}};
@@ -42,6 +42,15 @@ test('clear errors when nothing is configured', () => {
   assert.throws(() => resolveProvider({}, empty, {}), /agent-harness login/);
   assert.throws(() => resolveProvider({provider: 'openai'}, empty, {}), /No API key/);
   assert.throws(() => resolveProvider({provider: 'nope'}, empty, {}), /Unknown provider/);
+});
+
+test('a missing provider or key means setup is needed; a typo does not', () => {
+  assert.throws(() => resolveProvider({}, empty, {}), SetupNeededError);
+  assert.throws(() => resolveProvider({provider: 'openai'}, empty, {}), SetupNeededError);
+  assert.throws(
+    () => resolveProvider({provider: 'nope'}, empty, {}),
+    (error: Error) => !(error instanceof SetupNeededError),
+  );
 });
 
 test('ollama needs no key', () => {
