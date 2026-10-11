@@ -1,11 +1,14 @@
-
 import {chmod, mkdir, readFile, writeFile} from 'node:fs/promises';
 import {homedir} from 'node:os';
 import {dirname, join} from 'node:path';
 import {PRESETS, findPreset, type ResolvedProvider} from './providers/index.ts';
+import {type SecretStore, systemSecretStore} from './secrets.ts';
 
 export interface ProviderSettings {
+  // Kept in the file only when no system credential store is available.
   apiKey?: string;
+  // The key is in the system credential store instead of this file.
+  keyInStore?: boolean;
   model?: string;
   baseURL?: string;
 }
@@ -23,10 +26,55 @@ export function configPath(): string {
   return join(base, 'agent-harness', 'config.json');
 }
 
-export async function loadConfig(path = configPath()): Promise<Config> {
+// `store` is the system credential store unless given; tests pass their own,
+// or null for none.
+async function secretsFor(
+  store: SecretStore | null | undefined,
+): Promise<SecretStore | null> {
+  return store === undefined ? systemSecretStore() : store;
+}
+
+// The config as written to disk: each key moved into the store when that
+// works, else left in the file. Also lists the providers whose key stayed.
+function storeKeys(
+  config: Config,
+  secrets: SecretStore | null,
+): {file: Config; inFile: string[]} {
+  const providers: Record<string, ProviderSettings> = {};
+  const inFile: string[] = [];
+  for (const [id, {apiKey, keyInStore, ...rest}] of Object.entries(
+    config.providers,
+  )) {
+    if (apiKey && secrets) {
+      try {
+        secrets.set(id, apiKey);
+        providers[id] = {...rest, keyInStore: true};
+        continue;
+      } catch {
+        // No usable store (e.g. Linux without a keyring); use the file.
+      }
+    }
+    if (apiKey) inFile.push(id);
+    providers[id] = apiKey ? {...rest, apiKey} : keyInStore ? {...rest, keyInStore} : rest;
+  }
+  return {file: {defaultProvider: config.defaultProvider, providers}, inFile};
+}
+
+async function writeConfigFile(path: string, config: Config): Promise<void> {
+  await mkdir(dirname(path), {recursive: true, mode: 0o700});
+  // The file may still hold API keys, so only the owner may read it.
+  await writeFile(path, `${JSON.stringify(config, null, 2)}\n`, {mode: 0o600});
+  await chmod(path, 0o600);
+}
+
+export async function loadConfig(
+  path = configPath(),
+  store?: SecretStore | null,
+): Promise<Config> {
+  let config: Config;
   try {
     const parsed = JSON.parse(await readFile(path, 'utf8')) as Partial<Config>;
-    return {
+    config = {
       defaultProvider: parsed.defaultProvider,
       providers: parsed.providers ?? {},
     };
@@ -36,16 +84,37 @@ export async function loadConfig(path = configPath()): Promise<Config> {
     }
     throw new Error(`Could not read ${path}: ${(error as Error).message}`);
   }
+
+  const secrets = await secretsFor(store);
+  if (!secrets) return config;
+
+  // Move keys that older versions saved in the file into the store.
+  const plaintext = Object.values(config.providers).filter(p => p.apiKey).length;
+  if (plaintext > 0) {
+    const {file, inFile} = storeKeys(config, secrets);
+    if (inFile.length < plaintext) await writeConfigFile(path, file);
+  }
+
+  for (const [id, settings] of Object.entries(config.providers)) {
+    if (settings.apiKey || !settings.keyInStore) continue;
+    try {
+      settings.apiKey = secrets.get(id);
+    } catch {
+      // A locked or missing store reads as no key; `login` can fix that.
+    }
+  }
+  return config;
 }
 
+// Returns the providers whose key had to stay in the file.
 export async function saveConfig(
   config: Config,
   path = configPath(),
-): Promise<void> {
-  await mkdir(dirname(path), {recursive: true, mode: 0o700});
-  // The file holds API keys, so only the owner may read it.
-  await writeFile(path, `${JSON.stringify(config, null, 2)}\n`, {mode: 0o600});
-  await chmod(path, 0o600);
+  store?: SecretStore | null,
+): Promise<{inFile: string[]}> {
+  const {file, inFile} = storeKeys(config, await secretsFor(store));
+  await writeConfigFile(path, file);
+  return {inFile};
 }
 
 export interface ProviderFlags {

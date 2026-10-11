@@ -424,6 +424,25 @@ const writeFileTool: ToolSpec = {
   },
 };
 
+function occurrences(source: string, text: string): number {
+  return source.split(text).length - 1;
+}
+
+// Some models (Gemini Flash-Lite, for one) escape tool arguments twice, so
+// a line break arrives as a backslash and an "n". Undo one level of escaping.
+// Returns undefined when there is nothing to undo.
+export function unescapeOnce(text: string): string | undefined {
+  if (!/\\[nrt"\\]/.test(text)) return undefined;
+  try {
+    const value: unknown = JSON.parse(`"${text}"`);
+    if (typeof value === 'string') return value;
+  } catch {
+    // Not a valid JSON string body (e.g. a bare quote); undo the common ones.
+  }
+  const plain: Record<string, string> = {n: '\n', r: '\r', t: '\t'};
+  return text.replace(/\\(["\\nrt])/g, (_, char: string) => plain[char] ?? char);
+}
+
 const editFileTool: ToolSpec = {
   definition: {
     type: 'function',
@@ -453,10 +472,24 @@ const editFileTool: ToolSpec = {
     await assertNoSymlinkPath(context.workspaceRoot, target);
     await assertRegularFile(target, path);
     const source = await readFile(target, 'utf8');
-    const count = source.split(oldText).length - 1;
+
+    let find = oldText;
+    let replacement = newText;
+    let count = occurrences(source, find);
+    if (count === 0) {
+      // Accept twice-escaped arguments, but only when that reading is
+      // unambiguous in the file.
+      const unescaped = unescapeOnce(oldText);
+      if (unescaped !== undefined && occurrences(source, unescaped) === 1) {
+        find = unescaped;
+        replacement = unescapeOnce(newText) ?? newText;
+        count = 1;
+      }
+    }
     if (count !== 1) throw new Error(`old_text must occur exactly once; found ${count}.`);
     if (!(await context.approve(`edit ${path}`))) return {approved: false};
-    await writeFile(target, source.replace(oldText, newText), 'utf8');
+    // A function, so "$&" or "$1" in the new text is inserted literally.
+    await writeFile(target, source.replace(find, () => replacement), 'utf8');
     return {approved: true, path};
   },
 };

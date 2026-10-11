@@ -8,6 +8,7 @@ import {
   type ProviderFlags,
 } from './config.ts';
 import {PRESETS, type ProviderPreset, type ResolvedProvider} from './providers/index.ts';
+import {storeName} from './secrets.ts';
 import {checkSetup, listModels} from './setup.ts';
 
 // Ask one question. A fresh interface each time keeps it from fighting
@@ -176,11 +177,19 @@ export async function login(): Promise<void> {
     model: checked.model,
   };
   config.defaultProvider = preset.id;
-  await saveConfig(config);
+  const {inFile} = await saveConfig(config);
 
   console.log(
     `Saved. ${preset.label} with ${checked.model} is now the default (${configPath()}).`,
   );
+  if (checked.apiKey) {
+    console.log(
+      inFile.includes(preset.id)
+        ? 'No system keyring is available, so the API key is in that file, ' +
+            'which only you can read.'
+        : `The API key is stored in the ${storeName()}.`,
+    );
+  }
   warnAboutOverrides(preset);
 }
 

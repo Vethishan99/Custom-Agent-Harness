@@ -165,3 +165,35 @@ test('--no-shell removes run_command', () => {
   const names = createTools({shell: false}).map(t => t.definition.function.name);
   assert.ok(!names.includes('run_command'));
 });
+
+test('edit_file accepts arguments that were escaped twice', async () => {
+  const root = await tempDir();
+  const file = join(root, 'cart.js');
+  await writeFile(file, 'function total(a) {\n  return a - 1;\n}\n');
+  // What Gemini Flash-Lite sends: a backslash and "n" instead of line breaks.
+  await tool('edit_file').execute(
+    {
+      path: 'cart.js',
+      old_text: 'function total(a) {\\n  return a - 1;\\n}',
+      new_text: 'function total(a) {\\n  return a * 0.9;\\n}',
+    },
+    context(root),
+  );
+  assert.equal(await readFile(file, 'utf8'), 'function total(a) {\n  return a * 0.9;\n}\n');
+});
+
+test('edit_file keeps literal escapes and $ patterns when they match as-is', async () => {
+  const root = await tempDir();
+  const file = join(root, 'a.js');
+  await writeFile(file, "const s = 'x\\ny';\n");
+  await tool('edit_file').execute(
+    {path: 'a.js', old_text: "'x\\ny'", new_text: "'$& and $1'"},
+    context(root),
+  );
+  assert.equal(await readFile(file, 'utf8'), "const s = '$& and $1';\n");
+
+  await assert.rejects(
+    tool('edit_file').execute({path: 'a.js', old_text: 'missing\\ntext', new_text: 'x'}, context(root)),
+    /found 0/,
+  );
+});

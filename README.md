@@ -17,7 +17,9 @@ npm install -g agent-harness-tui # or install the `agent-harness` command
 
 ## Set up a provider
 
-Run `login` once. It asks for a provider, your API key and a model, then sends one tiny test request. If the key or model is wrong, it tells you which one and lets you fix it before anything is saved. Settings go to `~/.config/agent-harness/config.json`, which only you can read.
+Run `login` once. It asks for a provider, your API key and a model, then sends one tiny test request. If the key or model is wrong, it tells you which one and lets you fix it before anything is saved.
+
+Your API key goes into your system's credential store: the macOS Keychain, Windows Credential Manager, or the Linux Secret Service (GNOME Keyring or KWallet). The provider and model go to `~/.config/agent-harness/config.json`. On systems without a credential store, such as servers and containers, the key is kept in that file instead, and only you can read it. Keys saved by older versions move to the credential store automatically.
 
 ```sh
 agent-harness login
